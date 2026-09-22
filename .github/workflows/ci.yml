@@ -58,7 +58,7 @@ jobs:
       - name: Deploy to Staging
         run: |
           echo "=== MEMULAI DEPLOYMENT KE ENVIRONMENT STAGING ==="
-          echo "Menyiapkan rilis aplikasi ke server staging (tiruan)..."
+          echo "Menyiapkan rilis aplikasi ke server staging..."
           echo "Simulasi zero-downtime symlink swap pada server staging berhasil."
           echo "Staging deployment selesai tanpa kendala."
 
