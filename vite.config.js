@@ -9,8 +9,11 @@ export default defineConfig({
             input: [
                 'resources/css/app.css',
                 'resources/css/auth.css',
+                'resources/css/dashboard.css',
                 'resources/js/app.js',
                 'resources/js/auth-darkmode.js',
+                'resources/js/layout-darkmode.js',
+                'resources/js/links.js',
             ],
             refresh: true,
             fonts: [

@@ -13,14 +13,12 @@ return new class extends Migration
     {
         Schema::create('links', function (Blueprint $table) {
             $table->id('id_link');
-            $table->unsignedBigInteger('id_user')->nullable()->index();
             $table->string('name');
             $table->text('true_link');
             $table->string('new_link')->unique();
             $table->boolean('is_active')->default(true);
             $table->timestamps();
 
-            $table->foreign('id_user')->references('id_user')->on('users')->onDelete('cascade');
             $table->index('new_link');
             $table->index('is_active');
         });
