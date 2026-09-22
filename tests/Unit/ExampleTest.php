@@ -11,6 +11,6 @@ class ExampleTest extends TestCase
      */
     public function test_that_true_is_true(): void
     {
-        $this->assertTrue(false, 'Sengaja digagalkan untuk membuktikan pipeline CI berhenti merah');
+        $this->assertTrue(true);
     }
 }
