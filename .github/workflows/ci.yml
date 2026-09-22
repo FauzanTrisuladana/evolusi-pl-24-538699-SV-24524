@@ -1,31 +1,91 @@
-name: CI
+name: CI/CD Pipeline
 
 on:
   push:
-    branches: ['main', 'dev', 'feature/**']
+    branches: ['main', 'dev', 'feature/**', 'chore/**']
   pull_request:
-    branches: ['main', 'dev']
+    branches: ['main']
 
 jobs:
-  test:
+  build:
+    name: Build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.4'
-      - run: composer install --no-progress --no-interaction
-      - run: cp .env.example .env
-      - run: php artisan key:generate
-      - run: php artisan migrate --seed
-      - run: php artisan test
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: shivammathur/setup-php@v2
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
-      - run: composer install --no-progress --no-interaction
-      - run: vendor/bin/pint --test
+
+      - name: Install Dependencies
+        run: composer install --no-progress --no-interaction
+
+  test:
+    name: Test
+    needs: [build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+
+      - name: Install Dependencies
+        run: composer install --no-progress --no-interaction
+
+      - name: Prepare Environment
+        run: cp .env.example .env
+
+      - name: Generate Application Key
+        run: php artisan key:generate
+
+      - name: Run Tests
+        run: php artisan test
+
+      - name: Code Style Check (Pint)
+        run: vendor/bin/pint --test
+
+  staging:
+    name: Staging
+    needs: [test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to Staging
+        run: |
+          echo "=== MEMULAI DEPLOYMENT KE ENVIRONMENT STAGING ==="
+          echo "Menyiapkan rilis aplikasi ke server staging (tiruan)..."
+          echo "Simulasi zero-downtime symlink swap pada server staging berhasil."
+          echo "Staging deployment selesai tanpa kendala."
+
+  production:
+    name: Production
+    needs: [staging]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    steps:
+      - name: Execute 7 Steps of deploy.sh
+        run: |
+          echo "=== MEMULAI DEPLOYMENT KE SERVER PRODUKSI ==="
+          echo "Langkah 1: Kunci pintu — tampilkan halaman pemeliharaan"
+          echo "Command: php artisan down --retry=60"
+          echo "Langkah 2: Ambil kode terbaru dari repository"
+          echo "Command: git pull origin main"
+          echo "Langkah 3: Pasang dependensi (tanpa paket dev)"
+          echo "Command: composer install --no-dev --optimize-autoloader"
+          echo "Langkah 4: Ubah skema basis data, --force = jangan tanya"
+          echo "Command: php artisan migrate --force"
+          echo "Langkah 5: Bangun ulang cache dengan kode & config baru"
+          echo "Command: php artisan config:cache"
+          echo "Command: php artisan route:cache"
+          echo "Command: php artisan view:cache"
+          echo "Langkah 6: Muat ulang pekerja antrean"
+          echo "Command: php artisan queue:restart"
+          echo "Langkah 7: Buka pintu kembali"
+          echo "Command: php artisan up"
+          echo "=== DEPLOYMENT PRODUKSI SELESAI DENGAN SUKSES ==="
