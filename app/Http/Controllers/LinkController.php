@@ -2,175 +2,117 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\ShortenLinkRequest;
+use App\Http\Requests\StoreLinkRequest;
+use App\Http\Requests\UpdateLinkRequest;
 use App\Models\Link;
 use Exception;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
-use Illuminate\Validation\ValidationException;
 
 class LinkController extends Controller
 {
+    /**
+     * Display a listing of links (all public).
+     */
     public function index(Request $request)
     {
-        $query = Link::query();
+        $links = Link::getFilteredLinks(
+            $request->get('search'),
+            $request->get('status')
+        );
 
-        // Search by name, custom alias, or original URL
-        if ($request->filled('search')) {
-            $search = $request->get('search');
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                    ->orWhere('new_link', 'like', "%{$search}%")
-                    ->orWhere('true_link', 'like', "%{$search}%");
-            });
-        }
-
-        // Filter by status
-        if ($request->filled('status') && $request->get('status') !== 'all') {
-            if ($request->get('status') === 'active') {
-                $query->where('is_active', true);
-            } elseif ($request->get('status') === 'inactive') {
-                $query->where('is_active', false);
-            }
-        }
-
-        $links = $query->orderBy('created_at', 'desc')->get();
         $newopened = $request->get('newopened', null);
 
         return view('links', compact('links', 'newopened'));
     }
 
-    public function shorten(Request $request)
+    /**
+     * Shorten a link for guest users from public form.
+     */
+    public function shorten(ShortenLinkRequest $request)
     {
         try {
-            $link = $request->validate([
-                'target_url' => 'required|string|max:2048',
-                'custom_alias' => 'nullable|alpha_dash|unique:links,new_link',
-            ], [
-                'target_url.required' => 'URL tujuan wajib diisi.',
-                'target_url.string' => 'Format URL tujuan tidak valid.',
-                'custom_alias.alpha_dash' => 'Alias khusus hanya boleh berisi huruf, angka, strip (-), dan garis bawah (_).',
-                'custom_alias.unique' => 'Alias khusus sudah digunakan. Silakan pilih yang lain.',
-            ]);
-
-            $result = self::storeshorten(
-                $link['target_url'],
-                $link['custom_alias'] ?? null,
+            $validated = $request->validated();
+            $link = Link::createShortenedLink(
+                $validated['target_url'],
+                $validated['custom_alias'] ?? null
             );
 
-            if ($result['status'] !== 'success') {
-                throw new Exception('Gagal memperpendek URL.');
-            }
-
-            return redirect()->route('links')->with('success', 'URL berhasil diperpendek!')->with('short_url', $result['short_url']);
-        } catch (ValidationException $e) {
-            return redirect()->route('links')->withErrors($e->errors())->withInput();
+            return redirect()->route('links')
+                ->with('success', 'URL berhasil diperpendek!')
+                ->with('short_url', url('/'.$link->new_link));
         } catch (Exception $e) {
-            return redirect()->route('links')->withErrors(['form' => 'Terjadi kesalahan: '.$e->getMessage().'. Silakan coba lagi.'])->withInput();
+            return redirect()->route('links')
+                ->withErrors(['form' => 'Terjadi kesalahan: '.$e->getMessage().'. Silakan coba lagi.'])
+                ->withInput();
         }
     }
 
-    public function shortenwaccount(Request $request)
+    /**
+     * Store a newly created link from dashboard modal.
+     */
+    public function shortenwaccount(StoreLinkRequest $request)
     {
         try {
-            $link = $request->validate([
-                'target_url' => 'required|string|max:2048',
-                'custom_alias' => 'nullable|alpha_dash|unique:links,new_link',
-                'name' => 'required|string|max:255',
-                'is_active' => 'nullable|boolean',
-            ], [
-                'target_url.required' => 'URL tujuan wajib diisi.',
-                'target_url.string' => 'Format URL tujuan tidak valid.',
-                'custom_alias.alpha_dash' => 'Alias khusus hanya boleh berisi huruf, angka, strip (-), dan garis bawah (_).',
-                'custom_alias.unique' => 'Alias khusus sudah digunakan. Silakan pilih yang lain.',
-                'name.required' => 'Nama link wajib diisi.',
-                'name.string' => 'Nama link harus berupa teks.',
-                'name.max' => 'Nama link maksimal 255 karakter.',
-                'is_active.boolean' => 'Status link tidak valid.',
-            ]);
-
-            $result = self::storeshorten(
-                $link['target_url'],
-                $link['custom_alias'] ?? null,
-                $link['is_active'] ?? false,
-                $link['name']
+            $validated = $request->validated();
+            $link = Link::createShortenedLink(
+                $validated['target_url'],
+                $validated['custom_alias'] ?? null,
+                $validated['is_active'] ?? false,
+                $validated['name']
             );
 
-            if ($result['status'] !== 'success') {
-                throw new Exception('Gagal memperpendek URL.');
-            }
+            $shortUrl = url('/'.$link->new_link);
 
             if (back()->getTargetUrl() === route('links', ['newopened' => '1'])) {
-                return redirect()->route('links')->with('success', 'URL berhasil diperpendek!')->with('short_url', $result['short_url']);
+                return redirect()->route('links')
+                    ->with('success', 'URL berhasil diperpendek!')
+                    ->with('short_url', $shortUrl);
             }
 
-            return back()->with('success', 'URL berhasil diperpendek!')->with('short_url', $result['short_url']);
-        } catch (ValidationException $e) {
-            return back()->withErrors($e->errors(), 'new')->withInput();
+            return back()
+                ->with('success', 'URL berhasil diperpendek!')
+                ->with('short_url', $shortUrl);
         } catch (Exception $e) {
-            return back()->withErrors(['form' => 'Terjadi kesalahan: '.$e->getMessage().'. Silakan coba lagi.'], 'new')->withInput();
+            return back()
+                ->withErrors(['form' => 'Terjadi kesalahan: '.$e->getMessage().'. Silakan coba lagi.'], 'new')
+                ->withInput();
         }
     }
 
+    /**
+     * Backward-compatible static helper for storing shortened link.
+     */
     public static function storeshorten($true_link, $new_link = null, $is_active = true, $name = null)
     {
-        try {
-            $new_link = $new_link ?? Str::random(6);
-            while (Link::where('new_link', $new_link)->exists()) {
-                $new_link = Str::random(6);
-            }
+        $link = Link::createShortenedLink($true_link, $new_link, $is_active, $name);
 
-            Link::create([
-                'name' => $name ?? 'Public Link',
-                'true_link' => $true_link,
-                'new_link' => $new_link,
-                'is_active' => $is_active,
-            ]);
-
-            return [
-                'status' => 'success',
-                'short_url' => url('/'.$new_link),
-            ];
-        } catch (Exception $e) {
-            throw new Exception($e->getMessage());
-        }
+        return [
+            'status' => 'success',
+            'short_url' => url('/'.$link->new_link),
+        ];
     }
 
-    public function update(Request $request, $id)
+    /**
+     * Update the specified link in storage.
+     */
+    public function update(UpdateLinkRequest $request, $id)
     {
         try {
-            $validated = $request->validate([
-                'target_url' => 'required|string|max:2048',
-                'custom_alias' => 'required|alpha_dash|unique:links,new_link,'.$id.',id_link',
-                'name' => 'required|string|max:255',
-                'is_active' => 'nullable|boolean',
-            ], [
-                'target_url.required' => 'URL tujuan wajib diisi.',
-                'target_url.string' => 'Format URL tujuan tidak valid.',
-                'custom_alias.required' => 'Alias wajib diisi.',
-                'custom_alias.alpha_dash' => 'Alias khusus hanya boleh berisi huruf, angka, strip (-), dan garis bawah (_).',
-                'custom_alias.unique' => 'Alias khusus sudah digunakan. Silakan pilih yang lain.',
-                'name.required' => 'Nama link wajib diisi.',
-                'name.string' => 'Nama link harus berupa teks.',
-                'name.max' => 'Nama link maksimal 255 karakter.',
-                'is_active.boolean' => 'Status link tidak valid.',
-            ]);
-
-            $existingLink = Link::where('id_link', $id)->firstOrFail();
-
-            $existingLink->true_link = $validated['target_url'];
-            $existingLink->new_link = $validated['custom_alias'];
-            $existingLink->name = $validated['name'];
-            $existingLink->is_active = $validated['is_active'] ?? false;
-            $existingLink->save();
+            $link = Link::where('id_link', $id)->firstOrFail();
+            $link->updateLink($request->validated());
 
             return back()->with('success', 'Link berhasil diperbarui!');
-        } catch (ValidationException $e) {
-            return back()->with('id', $id)->withErrors($e->errors(), 'edit');
         } catch (Exception $e) {
-            return back()->with('id', $id)->withErrors(['form' => 'Terjadi kesalahan: '.$e->getMessage().'. Silakan coba lagi.'], 'edit');
+            return back()
+                ->with('id', $id)
+                ->withErrors(['form' => 'Terjadi kesalahan: '.$e->getMessage().'. Silakan coba lagi.'], 'edit');
         }
     }
 
+    /**
+     * Remove the specified link from storage.
+     */
     public function destroy($id)
     {
         try {
@@ -183,16 +125,25 @@ class LinkController extends Controller
         }
     }
 
+    /**
+     * Get all links.
+     */
     public static function getAllLinks()
     {
         return Link::all();
     }
 
+    /**
+     * Get active links count.
+     */
     public static function getActiveLinksCount()
     {
-        return Link::where('is_active', true)->count();
+        return Link::getActiveLinksCount();
     }
 
+    /**
+     * Redirect shortened link to the target URL.
+     */
     public function redirect(Request $request, $new_link)
     {
         try {
