@@ -1,0 +1,110 @@
+name: Frontend CI/CD Pipeline
+
+on:
+  push:
+    branches: ['main', 'dev', 'feature/**', 'chore/**']
+  pull_request:
+    branches: ['main']
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run Linter
+        working-directory: frontend
+        run: npm run lint
+
+  test:
+    name: Unit Test (Vitest)
+    needs: [lint]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run Vitest Unit Tests
+        working-directory: frontend
+        run: npm run test:unit
+
+  build:
+    name: Build Frontend
+    needs: [test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build Static Files
+        working-directory: frontend
+        run: npm run build
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist/
+          retention-days: 7
+
+  deploy:
+    name: Deploy to Static Hosting
+    needs: [build]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    steps:
+      - name: Download Build Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+
+      - name: Tampilkan Isi dist/ ke Log
+        run: |
+          echo "=== MEMERIKSA ISI DIREKTORI DIST/ (HASIL OPER ARTIFACT BUILD) ==="
+          ls -la frontend/dist
+          echo ""
+          echo "Daftar seluruh file rilis aset frontend:"
+          find frontend/dist -type f
+
+      - name: Simulasi Deploy Statis
+        run: |
+          echo "=== MEMULAI DEPLOYMENT KE HOSTING STATIS ==="
+          echo "Mempersiapkan rilis static assets..."
+          echo "Aset web statis siap disajikan tanpa kompilasi ulang (zero build on deploy)."
+          echo "=== DEPLOYMENT FRONTEND SUKSES ==="
