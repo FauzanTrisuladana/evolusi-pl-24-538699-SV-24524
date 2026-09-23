@@ -23,7 +23,7 @@ export class ApiError extends Error {
 export function getBaseApiUrl(): string {
   const envUrl = import.meta.env.VITE_API_URL
   if (!envUrl) {
-    throw new Error('VITE_API_URL tidak ditemukan. Pastikan VITE_API_URL telah didefinisikan pada environment (.env).')
+    return 'http://localhost:8000/api'
   }
   return envUrl.replace(/\/+$/, '')
 }
