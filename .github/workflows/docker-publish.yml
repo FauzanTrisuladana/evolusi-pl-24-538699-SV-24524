@@ -2,12 +2,9 @@ name: Build and Push Docker Image to GHCR
 
 on:
   push:
-    branches:
-      - main
-      - dev
-      - 'feature/**'
-      - 'feat/**'
-  workflow_dispatch:
+    branches: ['main', 'dev', 'feature/**', 'chore/**']
+  pull_request:
+    branches: ['main']
 
 env:
   REGISTRY: ghcr.io
